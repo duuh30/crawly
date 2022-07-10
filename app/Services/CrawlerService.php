@@ -23,18 +23,14 @@ class CrawlerService
     public function initCrawler()
     {
         $response = Http::get($this->endpointURL);
-
         $token = $this->encryptToken($this->getToken($response));
+        $cookies = $response->cookies()->toArray();
 
-        $response = Http::withHeaders([
-            'Referer' => $this->endpointURL,
-        ])
-        ->withCookies([
-            'PHPSESSID' => $this->getCookieAttribute($response->cookies()->toArray(), 'Value'),
-        ], $this->getCookieAttribute($response->cookies()->toArray(), 'Domain'))
+        $response = Http::withHeaders($this->buildHeaders())
+        ->withCookies($this->buildCookies($cookies), $this->getCookieAttribute($cookies, 'Domain'))
         ->asForm()
         ->post($this->endpointURL, [
-            'token' => implode('', $token)
+            'token' => $token,
         ]);
 
         return "RESPOSTA: {$this->getAnswer($response)}";
@@ -79,7 +75,30 @@ class CrawlerService
             $splitToken[$key] = Arr::get($this->getReplacements(), $character, $character);
         }
 
-        return $splitToken;
+        return implode('',$splitToken);
+    }
+
+    /**
+     * Build Headers Request
+     * @return array
+     */
+    public function buildHeaders()
+    {
+        return [
+            'Referer' => $this->endpointURL,
+        ];
+    }
+
+    /**
+     * Build Cookies
+     * @param $cookies
+     * @return array
+     */
+    public function buildCookies($cookies)
+    {
+        return [
+            'PHPSESSID' => $this->getCookieAttribute($cookies, 'Value'),
+        ];
     }
 
     /**
