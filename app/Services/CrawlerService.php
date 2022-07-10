@@ -24,32 +24,73 @@ class CrawlerService
     {
         $response = Http::get($this->endpointURL);
 
-        $cookie = Arr::first($response->cookies()->toArray());
+        $token = $this->encryptToken($this->getToken($response));
+
+        $response = Http::withHeaders([
+            'Referer' => $this->endpointURL,
+        ])
+        ->withCookies([
+            'PHPSESSID' => $this->getCookieAttribute($response->cookies()->toArray(), 'Value'),
+        ], $this->getCookieAttribute($response->cookies()->toArray(), 'Domain'))
+        ->asForm()
+        ->post($this->endpointURL, [
+            'token' => implode('', $token)
+        ]);
+
+        return "RESPOSTA: {$this->getAnswer($response)}";
+    }
+
+    /**
+     * Get Answer from Web Page
+     * @param $response
+     * @return string
+     */
+    public function getAnswer($response)
+    {
+        $DOM = $this->loadHTML($response->body());
+
+        return $DOM->getElementById('answer')->textContent;
+    }
+
+    /**
+     * Get Token from Web Page
+     * @param $response
+     * @return string
+     */
+    public function getToken($response)
+    {
         $DOM = $this->loadHTML($response->body());
 
         $token = $DOM->getElementById('token')->getAttribute('value');
+
+        return $token;
+    }
+
+    /**
+     * Encrypt Web Page Token
+     * @param $token
+     * @return array
+     */
+    public function encryptToken($token)
+    {
         $splitToken = str_split($token, 1);
 
         foreach($splitToken as $key => $character) {
             $splitToken[$key] = Arr::get($this->getReplacements(), $character, $character);
         }
 
-        $response = Http::withHeaders([
-            'Referer' => $this->endpointURL,
-        ])
-        ->withCookies([
-            'PHPSESSID' => $cookie['Value'],
-        ], $cookie['Domain'])
-        ->asForm()
-        ->post($this->endpointURL, [
-            'token' => implode('', $splitToken)
-        ]);
+        return $splitToken;
+    }
 
-        $DOM = $this->loadHTML($response->body());
-
-        $value = $DOM->getElementById('answer')->textContent;
-
-        return "RESPOSTA: {$value}";
+    /**
+     * Get Cookie Attribute
+     * @param $cookie
+     * @param $attribute
+     * @return mixed
+     */
+    public function getCookieAttribute($cookie, $attribute)
+    {
+        return Arr::get(Arr::first($cookie), $attribute);
     }
 
     /**
